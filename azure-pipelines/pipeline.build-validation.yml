@@ -1,0 +1,160 @@
+---
+trigger: none
+
+pr:
+  branches:
+    include:
+      - "*"
+
+parameters:
+  - name: imageRegistry
+    displayName: Container registry hosting checker images
+    type: string
+    default: ""
+  - name: imageRepository
+    displayName: Image repository name
+    type: string
+    default: global-build-validation
+  - name: useSelfHostedAgents
+    displayName: Use a self-hosted agent pool instead of container jobs
+    type: boolean
+    default: false
+  - name: poolName
+    displayName: Self-hosted agent pool name
+    type: string
+    default: global-build-validation
+  - name: vmImage
+    displayName: Microsoft-hosted image when not using self-hosted agents
+    type: string
+    default: ubuntu-22.04
+
+stages:
+  - stage: Prerequisites
+    displayName: Detect changed files
+    jobs:
+      - job: Changeset
+        displayName: Check changeset
+        pool:
+          vmImage: ${{ parameters.vmImage }}
+        workspace:
+          clean: all
+        steps:
+          - checkout: self
+            fetchDepth: 2
+          - script: |
+              set -e
+              echo "Create list with modified files..."
+              git diff --name-status @~ @ 2>/dev/null | sed --regexp-extended -e '/^D\t/ d; s/^[^\t]+\t+//; s/^.+\t//;' > /tmp/git.diff || true
+              cat /tmp/git.diff || true
+
+              find_modified_files() {
+                sed --regexp-extended --silent -e "/${1/./\\.}\$/I p" < /tmp/git.diff
+              }
+
+              PythonFilesChanged=$(if [ -z "$(find_modified_files \.py)" ]; then echo false; else echo true; fi)
+              MarkdownFilesChanged=$(if [ -z "$(find_modified_files \.md)" ]; then echo false; else echo true; fi)
+              TerraformFilesChanged=$(if [ -z "$(find_modified_files \.tf)" ]; then echo false; else echo true; fi)
+              MarkupFilesChanged=$(if [[ -z "$(find_modified_files \.md)" && -z "$(find_modified_files \.yaml)" && -z "$(find_modified_files \.yml)" && -z "$(find_modified_files \.toml)" ]]; then echo false; else echo true; fi)
+              YamlFilesChanged=$(if [[ -z "$(find_modified_files \.yaml)" && -z "$(find_modified_files \.yml)" ]]; then echo false; else echo true; fi)
+              FoundImageFiles=$(find . -type f \( -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.jpg" -o -iname "*.png" \) | grep --silent . && echo true || echo false)
+
+              echo "##vso[task.setvariable variable=PythonFilesChanged;isOutput=true]${PythonFilesChanged}"
+              echo "##vso[task.setvariable variable=MarkdownFilesChanged;isOutput=true]${MarkdownFilesChanged}"
+              echo "##vso[task.setvariable variable=TerraformFilesChanged;isOutput=true]${TerraformFilesChanged}"
+              echo "##vso[task.setvariable variable=MarkupFilesChanged;isOutput=true]${MarkupFilesChanged}"
+              echo "##vso[task.setvariable variable=YamlFilesChanged;isOutput=true]${YamlFilesChanged}"
+              echo "##vso[task.setvariable variable=FoundImageFiles;isOutput=true]${FoundImageFiles}"
+            name: ModifiedFiles
+            displayName: Detect changed files
+
+  - stage: RunChecks
+    displayName: Run checks
+    dependsOn: Prerequisites
+    condition: succeeded()
+    variables:
+      PythonFilesChanged: $[ stageDependencies.Prerequisites.Changeset.outputs['ModifiedFiles.PythonFilesChanged'] ]
+      MarkdownFilesChanged: $[ stageDependencies.Prerequisites.Changeset.outputs['ModifiedFiles.MarkdownFilesChanged'] ]
+      TerraformFilesChanged: $[ stageDependencies.Prerequisites.Changeset.outputs['ModifiedFiles.TerraformFilesChanged'] ]
+      MarkupFilesChanged: $[ stageDependencies.Prerequisites.Changeset.outputs['ModifiedFiles.MarkupFilesChanged'] ]
+      YamlFilesChanged: $[ stageDependencies.Prerequisites.Changeset.outputs['ModifiedFiles.YamlFilesChanged'] ]
+      FoundImageFiles: $[ stageDependencies.Prerequisites.Changeset.outputs['ModifiedFiles.FoundImageFiles'] ]
+    jobs:
+      - template: templates/run-branch-name-validation.yml
+        parameters:
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+          branch: $(Build.SourceBranch)
+      - template: templates/run-spellcheck.yml
+        parameters:
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-python-validation.yml
+        parameters:
+          condition: eq(variables['PythonFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-markdownlint-cli2.yml
+        parameters:
+          condition: eq(variables['MarkdownFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-markdown-link-check.yml
+        parameters:
+          condition: eq(variables['MarkdownFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-prettier-check.yml
+        parameters:
+          condition: eq(variables['MarkupFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-yamllint.yml
+        parameters:
+          condition: eq(variables['YamlFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-terraform-format.yml
+        parameters:
+          condition: eq(variables['TerraformFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-terraform-validation.yml
+        parameters:
+          condition: eq(variables['TerraformFilesChanged'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}
+      - template: templates/run-unreferenced-image-check.yml
+        parameters:
+          condition: eq(variables['FoundImageFiles'], 'true')
+          imageRegistry: ${{ parameters.imageRegistry }}
+          imageRepository: ${{ parameters.imageRepository }}
+          useSelfHostedAgents: ${{ parameters.useSelfHostedAgents }}
+          poolName: ${{ parameters.poolName }}
+          vmImage: ${{ parameters.vmImage }}

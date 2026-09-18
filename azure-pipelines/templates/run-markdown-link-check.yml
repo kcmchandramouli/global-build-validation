@@ -1,0 +1,48 @@
+---
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+  - name: imageRegistry
+    type: string
+  - name: imageRepository
+    type: string
+    default: global-build-validation
+  - name: useSelfHostedAgents
+    type: boolean
+    default: false
+  - name: poolName
+    type: string
+    default: global-build-validation
+  - name: vmImage
+    type: string
+    default: ubuntu-22.04
+  - name: error_as_warning
+    type: boolean
+    default: false
+
+jobs:
+  - job: MarkdownLinkCheck
+    displayName: Run markdown-link-check
+    condition: ${{ parameters.condition }}
+    ${{ if eq(parameters.useSelfHostedAgents, true) }}:
+      pool:
+        name: ${{ parameters.poolName }}
+        demands:
+          - markdown-link-check.3
+    ${{ else }}:
+      pool:
+        vmImage: ${{ parameters.vmImage }}
+      container:
+        image: ${{ parameters.imageRegistry }}/${{ parameters.imageRepository }}:markdown-link-check.3
+        options: --entrypoint ""
+    workspace:
+      clean: all
+    steps:
+      - checkout: self
+        fetchDepth: 2
+      - script: docker_entrypoint.sh
+        displayName: Run markdown-link-check
+        env:
+          ERROR_AS_WARNING: ${{ parameters.error_as_warning }}
+          AUTHORIZATION_PAT: $(AUTHORIZATION_PAT)

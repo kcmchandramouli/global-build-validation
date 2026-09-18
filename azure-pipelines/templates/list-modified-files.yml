@@ -1,0 +1,36 @@
+---
+parameters:
+  - name: outputFile
+    type: string
+  - name: sedFilter
+    type: string
+    default: ""
+  - name: copyAll
+    type: boolean
+    default: false
+
+steps:
+  - script: |
+      set -e
+      echo "Create list with modified files..."
+      git diff --name-status @~ @ 2>/dev/null | sed --regexp-extended -e '/^D\t/ d; s/^[^\t]+\t+//; s/^.+\t//;' > /tmp/git.diff || true
+      cat /tmp/git.diff || true
+      echo "<EOF>"
+      mkdir -p "$(dirname "${OUTPUT_FILE}")"
+      COPY_ALL=$(echo "${COPY_ALL}" | tr '[:upper:]' '[:lower:]')
+      if [ ! -s /tmp/git.diff ]; then
+        echo "##vso[task.logissue type=warning]No changed files received from git. Did you miss cloning with fetchDepth >= 2?"
+        : > "${OUTPUT_FILE}"
+      elif [ "${COPY_ALL}" = "true" ]; then
+        cp -f /tmp/git.diff "${OUTPUT_FILE}"
+      else
+        sed --regexp-extended --silent -e "${SED_FILTER}" < /tmp/git.diff > "${OUTPUT_FILE}"
+      fi
+      echo "Selected files:"
+      cat "${OUTPUT_FILE}" || true
+      rm -f /tmp/git.diff
+    displayName: List modified files
+    env:
+      OUTPUT_FILE: ${{ parameters.outputFile }}
+      SED_FILTER: ${{ parameters.sedFilter }}
+      COPY_ALL: ${{ parameters.copyAll }}

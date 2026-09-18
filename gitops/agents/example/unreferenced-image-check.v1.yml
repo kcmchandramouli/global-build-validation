@@ -1,0 +1,9 @@
+---
+image_tag: "unreferenced-image-check.v1"
+resources:
+  limits:
+    cpu: "250m"
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi

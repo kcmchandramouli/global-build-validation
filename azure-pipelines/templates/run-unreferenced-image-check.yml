@@ -1,0 +1,47 @@
+---
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+  - name: imageRegistry
+    type: string
+  - name: imageRepository
+    type: string
+    default: global-build-validation
+  - name: useSelfHostedAgents
+    type: boolean
+    default: false
+  - name: poolName
+    type: string
+    default: global-build-validation
+  - name: vmImage
+    type: string
+    default: ubuntu-22.04
+  - name: error_as_warning
+    type: boolean
+    default: true
+
+jobs:
+  - job: UnreferencedImageCheck
+    displayName: Run unreferenced-image-check
+    condition: ${{ parameters.condition }}
+    ${{ if eq(parameters.useSelfHostedAgents, true) }}:
+      pool:
+        name: ${{ parameters.poolName }}
+        demands:
+          - unreferenced-image-check.v1
+    ${{ else }}:
+      pool:
+        vmImage: ${{ parameters.vmImage }}
+      container:
+        image: ${{ parameters.imageRegistry }}/${{ parameters.imageRepository }}:unreferenced-image-check.v1
+        options: --entrypoint ""
+    workspace:
+      clean: all
+    steps:
+      - checkout: self
+        fetchDepth: 1
+      - script: docker_entrypoint.sh
+        displayName: Check unreferenced images
+        env:
+          ERROR_AS_WARNING: ${{ parameters.error_as_warning }}

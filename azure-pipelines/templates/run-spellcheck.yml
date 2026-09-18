@@ -1,0 +1,59 @@
+---
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+  - name: imageRegistry
+    type: string
+  - name: imageRepository
+    type: string
+    default: global-build-validation
+  - name: useSelfHostedAgents
+    type: boolean
+    default: false
+  - name: poolName
+    type: string
+    default: global-build-validation
+  - name: vmImage
+    type: string
+    default: ubuntu-22.04
+  - name: error_as_warning
+    type: boolean
+    default: false
+  - name: cspell_config_file
+    type: string
+    default: ""
+  - name: cspell_config_content_json
+    type: string
+    default: ""
+
+jobs:
+  - job: Spellcheck
+    displayName: Run spellcheck
+    condition: ${{ parameters.condition }}
+    ${{ if eq(parameters.useSelfHostedAgents, true) }}:
+      pool:
+        name: ${{ parameters.poolName }}
+        demands:
+          - cspell.6
+    ${{ else }}:
+      pool:
+        vmImage: ${{ parameters.vmImage }}
+      container:
+        image: ${{ parameters.imageRegistry }}/${{ parameters.imageRepository }}:cspell.6
+        options: --entrypoint ""
+    workspace:
+      clean: all
+    steps:
+      - checkout: self
+        fetchDepth: 2
+      - template: list-modified-files.yml
+        parameters:
+          outputFile: /tmp/cspell.files
+          copyAll: true
+      - script: docker_entrypoint.sh
+        displayName: Run CSpell
+        env:
+          CSPELL_CONFIG_FILE: ${{ parameters.cspell_config_file }}
+          CSPELL_CONFIG_CONTENT_JSON: ${{ parameters.cspell_config_content_json }}
+          ERROR_AS_WARNING: ${{ parameters.error_as_warning }}

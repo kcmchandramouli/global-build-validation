@@ -1,0 +1,6 @@
+Global build validation agent
+Release: {{ .Release.Name }}
+Chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+Image: {{ .Values.image.repository }}:{{ .Values.image_tag }}
+Pool: {{ .Values.azure_devops.poolName }}
+Demand: {{ .Values.image_tag }}{{ .Values.demand_postfix }}

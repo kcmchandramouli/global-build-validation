@@ -1,0 +1,55 @@
+---
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+  - name: imageRegistry
+    type: string
+  - name: imageRepository
+    type: string
+    default: global-build-validation
+  - name: useSelfHostedAgents
+    type: boolean
+    default: false
+  - name: poolName
+    type: string
+    default: global-build-validation
+  - name: vmImage
+    type: string
+    default: ubuntu-22.04
+  - name: error_as_warning
+    type: boolean
+    default: false
+  - name: branch_name_regular_expression
+    type: string
+    default: "^(main|master|develop|(feature|feat|fix|hotfix|release|chore)/[A-Za-z0-9._-]+)$"
+  - name: branch
+    type: string
+    default: $(Build.SourceBranch)
+
+jobs:
+  - job: BranchNameValidation
+    displayName: Run branch name validation
+    condition: ${{ parameters.condition }}
+    ${{ if eq(parameters.useSelfHostedAgents, true) }}:
+      pool:
+        name: ${{ parameters.poolName }}
+        demands:
+          - generic-ubuntu.22.04
+    ${{ else }}:
+      pool:
+        vmImage: ${{ parameters.vmImage }}
+      container:
+        image: ${{ parameters.imageRegistry }}/${{ parameters.imageRepository }}:generic-ubuntu.22.04
+        options: --entrypoint ""
+    workspace:
+      clean: all
+    steps:
+      - checkout: self
+        fetchDepth: 1
+      - script: docker_entrypoint.sh /etc/generic-ubuntu/branch_name_validation.sh
+        displayName: Validate branch name
+        env:
+          BRANCH_TO_CHECK: ${{ parameters.branch }}
+          BRANCH_NAME_REGULAR_EXPRESSION: ${{ parameters.branch_name_regular_expression }}
+          ERROR_AS_WARNING: ${{ parameters.error_as_warning }}

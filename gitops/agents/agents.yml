@@ -1,0 +1,49 @@
+---
+# Argo CD ApplicationSet template.
+# Replace YOUR_GIT_URL, YOUR_GIT_REVISION, YOUR_NAMESPACE, and YOUR_DESTINATION_SERVER.
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: global-build-validation-agents
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: YOUR_GIT_URL
+        revision: YOUR_GIT_REVISION
+        files:
+          - path: "gitops/agents/example/*.yml"
+  template:
+    metadata:
+      name: "gbv-agent-{{.image_tag}}-{{.path.basenameNormalized}}"
+    spec:
+      project: default
+      source:
+        repoURL: YOUR_GIT_URL
+        targetRevision: YOUR_GIT_REVISION
+        path: helm/agent
+        helm:
+          parameters:
+            - name: demand_postfix
+              value: "-{{.path.basenameNormalized}}"
+          releaseName: "gbv-agent-{{.image_tag}}-{{.path.basenameNormalized}}"
+          values: |
+            fullnameOverride: gbv-agent-{{.image_tag}}-{{.path.basenameNormalized}}
+          valueFiles:
+            - "./../values.yaml"
+            - "./values.yaml"
+            - "./../../{{.path.path}}/{{.path.filename}}"
+      destination:
+        namespace: YOUR_NAMESPACE
+        server: YOUR_DESTINATION_SERVER
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true

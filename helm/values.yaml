@@ -1,0 +1,9 @@
+---
+# Shared defaults for all agent releases.
+azure_devops:
+  poolName: global-build-validation
+  URL: https://dev.azure.com/YOUR_ORG
+
+image:
+  repository: ghcr.io/YOUR_ORG/global-build-validation
+  pullPolicy: Always

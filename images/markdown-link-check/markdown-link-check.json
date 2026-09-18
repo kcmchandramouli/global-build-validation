@@ -1,0 +1,38 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://[^/]*\\.sharepoint\\.com"
+    },
+    {
+      "pattern": "^https://dev\\.azure\\.com/.*/_build/.*\\?.*definitionId"
+    },
+    {
+      "pattern": "^https://dev\\.azure\\.com/.*/_git/"
+    },
+    {
+      "pattern": "^https://dev\\.azure\\.com/.*/_wiki/"
+    },
+    {
+      "pattern": "^https://dev\\.azure\\.com/.*/_workitems/edit/"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^/",
+      "replacement": "{{BASEURL}}/"
+    }
+  ],
+  "httpHeaders": [
+    {
+      "urls": ["https://dev.azure.com", "https://github.com"],
+      "headers": {
+        "Authorization": null
+      }
+    }
+  ],
+  "timeout": "10s",
+  "retryOn429": true,
+  "retryCount": 5,
+  "fallbackRetryDelay": "10s",
+  "aliveStatusCodes": [200, 202, 203]
+}

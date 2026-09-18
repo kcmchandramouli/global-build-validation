@@ -1,0 +1,18 @@
+[tool.ruff]
+extend-exclude = [
+  ".nox*/",
+  ".venv*/",
+  "repos/"
+]
+
+[tool.ruff.lint]
+select = ["D"]
+
+[tool.mypy]
+ignore_missing_imports = true
+exclude = [
+  '^noxfile\.py$',
+  '^\.nox.*/.*$',
+  '^\.venv.*/.*$',
+  '^repos/.*$'
+]
