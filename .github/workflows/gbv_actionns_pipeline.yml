@@ -75,8 +75,7 @@ jobs:
       - name: Run ${{ matrix.session }}
         run: |
           source .venv/bin/activate
-          python -m nox --no-venv \
-            -s "${{ matrix.session }}"
+          python -m nox -s "${{ matrix.session }}"
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -120,5 +119,5 @@ jobs:
       - name: Run ${{ matrix.session }}
         run: |
           source .venv/bin/activate
-          python -m nox --no-venv \
-            -s "${{ matrix.session }}"
+          python -m nox -s "${{ matrix.session }}"
+
