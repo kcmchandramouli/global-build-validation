@@ -1,4 +1,4 @@
-"""Markdown, link, and Prettier analysis."""
+"""Markdown lint, link checks, and Markdown/YAML formatting."""
 
 from __future__ import annotations
 
@@ -8,48 +8,49 @@ import os
 import pathlib
 from typing import Any
 
-import nox
-
-from src.runner import CheckFailed, node_command, require_config, wrap
+from src.runner import require_config, wrap
 from src.workspace import (
     bundled_config,
     first_file,
+    in_container,
     read_modified_files,
     resolve_targets,
     walk_files,
     workspace_from,
 )
 
+_PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_PYMARKDOWN_EXCLUDES = (".nox*", ".venv*", "repos/**", "**/__pycache__/**", ".git/**")
+_FORMAT_EXCLUDES = (".nox*", ".venv*", "repos/**", ".git/**")
+
 
 def run_markdownlint(session: Any) -> None:
-    """Lint Markdown with markdownlint-cli2."""
-    config = require_config(
-        session,
-        "markdownlint",
-        "markdownlint-cli2",
-        ".markdownlint-cli2.yaml",
-    )
+    """Lint Markdown with PyMarkdown. Line length (MD013) is disabled."""
+    if not in_container():
+        session.install("pymarkdownlnt==0.9.32")
     root = workspace_from(session.invoked_from)
     with session.chdir(root):
         skip, files = resolve_targets(
-            list(session.posargs), "markdownlint-cli2.files", ["**/*.md"]
+            list(session.posargs), "markdownlint.files", ["."]
         )
         if skip:
             session.skip("No files to check")
-        command = node_command(session, "markdownlint-cli2", "markdownlint-cli2-config")
+        command = ["pymarkdown", "-d", "md013", "scan", "-r"]
+        for pattern in _PYMARKDOWN_EXCLUDES:
+            command.extend(["-e", pattern])
         with wrap(session, "Markdownlint failed", "markdownlint", "error_as_warning"):
-            session.run(*command, str(config), *files, external=True)
+            session.run(*command, *files, external=in_container())
 
 
 def prepare_link_config(config_path: pathlib.Path, out_path: pathlib.Path) -> None:
-    """Write markdown-link-check config, including an optional auth header."""
+    """Write link-check config, including an optional auth header."""
     try:
         with config_path.open(encoding="utf-8") as handle:
             config = json.load(handle)
     except json.JSONDecodeError as exc:
-        raise CheckFailed(f"Invalid markdown-link-check configuration: {exc}") from exc
+        raise ValueError(f"Invalid markdown-link-check configuration: {exc}") from exc
     if not isinstance(config, dict):
-        raise CheckFailed("markdown-link-check configuration must be a JSON object")
+        raise ValueError("markdown-link-check configuration must be a JSON object")
     token = None
     pat = os.getenv("AUTHORIZATION_PAT")
     if pat is not None:
@@ -66,7 +67,7 @@ def prepare_link_config(config_path: pathlib.Path, out_path: pathlib.Path) -> No
                 code for code in config["aliveStatusCodes"] if code != 203
             ]
         except (KeyError, IndexError, TypeError) as exc:
-            raise CheckFailed(
+            raise ValueError(
                 "markdown-link-check configuration is missing httpHeaders"
             ) from exc
     with out_path.open("w", encoding="utf-8") as handle:
@@ -74,7 +75,9 @@ def prepare_link_config(config_path: pathlib.Path, out_path: pathlib.Path) -> No
 
 
 def run_markdown_link_check(session: Any) -> None:
-    """Check links in Markdown files."""
+    """Check HTTP(S) links in Markdown files."""
+    if not in_container():
+        session.install("requests==2.32.3")
     candidates = [pathlib.Path("/etc/markdown-link-check/config.json")]
     bundled = bundled_config("markdown-link-check", "markdown-link-check.json")
     if bundled is not None:
@@ -85,57 +88,99 @@ def run_markdown_link_check(session: Any) -> None:
     root = workspace_from(session.invoked_from)
     out_path = pathlib.Path("/tmp/markdown-link-check.json")
     with session.chdir(root):
-        prepare_link_config(config, out_path)
+        try:
+            prepare_link_config(config, out_path)
+        except ValueError as exc:
+            session.error(str(exc))
         files = list(session.posargs) or walk_files(root, ".md")
         if not files:
             session.log("No Markdown files to check.")
             return
-        command = node_command(session, "markdown-link-check@3", "markdown-link-check")
-        failed = False
-        for path in files:
-            try:
-                session.run(
-                    *command,
-                    "--verbose",
-                    "--config",
-                    str(out_path),
-                    path,
-                    external=True,
-                )
-            except nox.command.CommandFailed:
-                failed = True
-        if failed:
-            with wrap(
-                session,
-                "Markdown link check failed",
-                "markdown-link-check",
-                "error_as_warning",
-            ):
-                raise CheckFailed("Markdown link check failed")
+        session.env["PYTHONPATH"] = str(_PACKAGE_ROOT)
+        with wrap(
+            session,
+            "Markdown link check failed",
+            "markdown-link-check",
+            "error_as_warning",
+        ):
+            session.run(
+                "python",
+                "-m",
+                "src.checks.links",
+                str(out_path),
+                *files,
+                external=in_container(),
+            )
 
 
-def run_prettier(session: Any) -> None:
-    """Check Markdown, YAML, and TOML formatting with Prettier."""
-    config = require_config(session, "prettier", "prettier-check", ".prettierrc")
+def _partition(files: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Split paths into Markdown, YAML, and everything else."""
+    markdown: list[str] = []
+    yaml_files: list[str] = []
+    skipped: list[str] = []
+    for path in files:
+        lowered = path.casefold()
+        if path == "." or pathlib.Path(path).is_dir():
+            markdown.append(path)
+            yaml_files.append(path)
+        elif lowered.endswith(".md"):
+            markdown.append(path)
+        elif lowered.endswith((".yml", ".yaml")):
+            yaml_files.append(path)
+        else:
+            skipped.append(path)
+    return markdown, yaml_files, skipped
+
+
+def _extend_excludes(command: list[str], flag: str) -> None:
+    """Append repeated exclude flags."""
+    for pattern in _FORMAT_EXCLUDES:
+        command.extend([flag, pattern])
+
+
+def run_format(session: Any) -> None:
+    """Check Markdown with mdformat and YAML with yamlfix.
+
+    TOML is not checked. No Python formatter covers it the way Prettier did.
+    """
+    if not in_container():
+        session.install("mdformat==0.7.22", "yamlfix==1.17.0")
+    yamlfix_config = require_config(session, "yamlfix", "yamlfix", "pyproject.toml")
     root = workspace_from(session.invoked_from)
     with session.chdir(root):
-        listed = read_modified_files("prettier-check.files")
-        command = [
-            *node_command(session, "prettier@3", "prettier"),
-            "--no-editorconfig",
-            "--config",
-            str(config),
-            "--check",
-        ]
+        listed = read_modified_files("format.files")
         if session.posargs:
             files = list(session.posargs)
         elif listed is None:
-            command.append("--no-error-on-unmatched-pattern")
-            files = ["**/*.md", "**/*.yaml", "**/*.yml", "**/*.toml"]
+            files = ["."]
         elif not listed:
             session.skip("No files to check")
             return
         else:
             files = listed
-        with wrap(session, "Prettier check failed", "prettier", "error_as_warning"):
-            session.run(*command, *files, external=True)
+        markdown, yaml_files, skipped = _partition(files)
+        toml_files = [path for path in skipped if path.casefold().endswith(".toml")]
+        if toml_files:
+            session.log("TOML formatting is not checked: " + ", ".join(toml_files))
+        if markdown:
+            command = [
+                "mdformat",
+                "--check",
+                "--wrap",
+                "keep",
+                "--end-of-line",
+                "lf",
+            ]
+            _extend_excludes(command, "--exclude")
+            with wrap(
+                session,
+                "Markdown format failed",
+                "markdown-format",
+                "error_as_warning",
+            ):
+                session.run(*command, *markdown, external=in_container())
+        if yaml_files:
+            command = ["yamlfix", "--check", "-c", str(yamlfix_config)]
+            _extend_excludes(command, "-e")
+            with wrap(session, "YAML format failed", "yaml-format", "error_as_warning"):
+                session.run(*command, *yaml_files, external=in_container())

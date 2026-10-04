@@ -162,7 +162,7 @@ def pylint(session: Any) -> None:
     external = prepare_checker(session, "pylint")
     if not external:
         # Let pylint resolve imports used by this package.
-        session.install("pyyaml", "nox>=2024.4.15")
+        session.install("pyyaml", "nox>=2024.4.15", "requests==2.32.3")
     working_directory = _working_directory(session)
     with session.chdir(working_directory):
         pylint_rc = working_directory / "pylint.rc"

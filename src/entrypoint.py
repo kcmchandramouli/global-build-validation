@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -54,8 +53,6 @@ def emit_ci_toolchain() -> None:
     if os.environ.get("TF_BUILD", "").casefold() != "true":
         return
     _dump_group("Dump python packages", [sys.executable, "-m", "pip", "freeze"])
-    if shutil.which("npm"):
-        _dump_group("Dump npm versions", ["npm", "list", "--global", "--all"])
 
 
 def _dump_group(title: str, command: list[str]) -> None:

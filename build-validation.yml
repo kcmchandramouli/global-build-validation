@@ -1,0 +1,38 @@
+# Settings read by the nox sessions and by .github/workflows/analysis.yml.
+build-validation:
+  python:
+    black:
+      error_as_warning: false
+    flake8:
+      error_as_warning: false
+    ruff:
+      error_as_warning: false
+    pylint:
+      error_as_warning: false
+      upload_junit: true
+    mypy:
+      error_as_warning: false
+    pytest:
+      error_as_warning: false
+      upload_junit: true
+  yamllint:
+    error_as_warning: false
+  markdownlint:
+    error_as_warning: false
+  markdown-link-check:
+    error_as_warning: false
+  markdown-format:
+    error_as_warning: false
+  yaml-format:
+    error_as_warning: false
+  codespell:
+    error_as_warning: false
+  terraform-format:
+    error_as_warning: false
+  terraform-validation:
+    error_as_warning: false
+  unreferenced-image-check:
+    error_as_warning: true
+  branch-name-validation:
+    error_as_warning: false
+    branch_regex: ^(main|master|develop|(feature|feat|fix|hotfix|release|chore)/[A-Za-z0-9._-]+)$

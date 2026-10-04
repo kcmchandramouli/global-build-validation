@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import shutil
 from typing import Any, Generator
 
 import nox
@@ -48,19 +47,6 @@ def wrap(session: Any, message: str, *config_path: str) -> Generator[None, None,
         yield
     except (nox.command.CommandFailed, CheckFailed) as exc:
         report(session, message, error_as_warning(*config_path), str(exc))
-
-
-def node_command(session: Any, package: str, binary: str) -> list[str]:
-    """Return a global binary, or an npx command that fetches it."""
-    found = shutil.which(binary)
-    if found:
-        return [found]
-    if shutil.which("npx") is None:
-        session.error(
-            f"{binary} is not on PATH. Install Node.js 18+ and rerun "
-            f"nox -s {session.name}"
-        )
-    return ["npx", "--yes", "--package", package, binary]
 
 
 def require_config(session: Any, label: str, *relative: str) -> Any:

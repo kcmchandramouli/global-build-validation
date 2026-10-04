@@ -1,9 +1,0 @@
-{
-  "private": true,
-  "dependencies": {
-    "cspell": "6",
-    "markdown-link-check": "3",
-    "markdownlint-cli2": "*",
-    "prettier": "3"
-  }
-}

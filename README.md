@@ -9,22 +9,20 @@ Bare `nox` does not run checks. Pass a session with `-s`. List them with `nox -l
 | Files | Language or content | Tools | Nox session |
 | --- | --- | --- | --- |
 | `.py` | Python | black, flake8, ruff, pylint, mypy, pytest | `black`, `flake8`, `ruff`, `pylint`, `mypy`, `pytest`, or `python` for all six |
-| `.md` | Markdown | markdownlint-cli2, markdown-link-check, Prettier | `markdownlint`, `markdown-link-check`, `prettier` |
-| `.yml`, `.yaml` | YAML | yamllint, Prettier | `yamllint`, `prettier` |
-| `.toml` | TOML | Prettier | `prettier` |
+| `.md` | Markdown | PyMarkdown, link check, mdformat | `markdownlint`, `markdown-link-check`, `format` |
+| `.yml`, `.yaml` | YAML | yamllint, yamlfix | `yamllint`, `format` |
 | `.tf` | Terraform | `terraform fmt`, Checkov | `terraform-format`, `terraform-validation` |
 | `.jpg`, `.jpeg`, `.png`, `.gif` | Images tracked by git | unreferenced image check | `unreferenced-image-check` |
-| any text | Spelling | CSpell | `cspell` |
+| any text | Spelling | codespell | `codespell` |
 | git branch | Branch name | configurable regular expression | `branch-name` |
 
 ## Prerequisites
 
 - Python 3.10 or newer
 - Git, for branch-name validation and the unreferenced image check
-- Node.js 18 or newer, for `cspell`, `markdownlint`, `prettier`, and `markdown-link-check` (`npx` is used when the binary is not already on `PATH`)
 - The Terraform CLI, for `terraform-format`
 
-Python tools are installed into the nox virtualenv from `requirements.txt` when a session runs. Checkov is installed by the `terraform-validation` session. Node packages are declared in `package.json` and fetched by `npx` at the versions the sessions request (`cspell@6`, `prettier@3`, `markdown-link-check@3`, `markdownlint-cli2`).
+Python tools are installed into the nox virtualenv from `requirements.txt` when a session runs. Markdown, spelling, YAML formatting, and link checks use Python packages (`pymarkdownlnt`, `codespell`, `mdformat`, `yamlfix`, `requests`). Node.js is not required. TOML formatting is not checked.
 
 ## Install and list sessions
 
@@ -49,9 +47,9 @@ nox -s pytest
 nox -s python
 nox -s markdownlint
 nox -s markdown-link-check
-nox -s prettier
+nox -s format
 nox -s yamllint
-nox -s cspell
+nox -s codespell
 nox -s terraform-format
 nox -s terraform-validation
 nox -s unreferenced-image-check
@@ -70,9 +68,9 @@ Limit a check to specific paths by placing them after `--`:
 nox -s black -- src
 nox -s flake8 -- src/config.py
 nox -s yamllint -- src/share
-nox -s prettier -- README.md
+nox -s format -- README.md
 nox -s terraform-format -- path/to/main.tf
-nox -s cspell -- README.md
+nox -s codespell -- README.md
 ```
 
 `nox -s python -- src` forwards those paths to black, flake8, ruff, pylint, mypy, and pytest.
@@ -106,11 +104,11 @@ When `/tmp/python.files` exists, Python sessions check the paths listed there (o
 
 | Session | What it does |
 | --- | --- |
-| `markdownlint` | markdownlint-cli2 using `src/share/markdownlint-cli2/.markdownlint-cli2.yaml`. Line length rule MD013 is disabled. Default glob is `**/*.md`. |
-| `markdown-link-check` | Checks each `.md` file with `src/share/markdown-link-check/markdown-link-check.json`. |
-| `prettier` | Formatting check for Markdown, and also for YAML and TOML. See below. |
+| `markdownlint` | PyMarkdown. Line length rule MD013 is disabled. The default target is the current directory, searched recursively. |
+| `markdown-link-check` | Python HTTP check of Markdown links, using `src/share/markdown-link-check/markdown-link-check.json`. |
+| `format` | mdformat for Markdown and yamlfix for YAML. TOML files are skipped. |
 
-`/tmp/markdownlint-cli2.files` overrides the Markdown file list the same way `/tmp/python.files` does for Python.
+`/tmp/markdownlint.files` overrides the Markdown lint file list the same way `/tmp/python.files` does for Python.
 
 Link checking walks the tree and skips `.git`, `repos`, `__pycache__`, `.pytest_cache`, `.nox*`, and `.venv*`. Set `AUTHORIZATION_PAT` to send a Basic auth header, or set `AUTHORIZATION_TOKEN` to send that token as the `Authorization` header. With a token, HTTP 203 is no longer treated as a live status.
 
@@ -120,13 +118,7 @@ Link checking walks the tree and skips `.git`, `repos`, `__pycache__`, `.pytest_
 
 `/tmp/yamllint.files` selects the files when you do not pass paths after `--`.
 
-Prettier also checks `**/*.yaml` and `**/*.yml`.
-
-### TOML
-
-`nox -s prettier` checks `**/*.toml` together with Markdown and YAML. Config is `src/share/prettier-check/.prettierrc` (print width 88, LF line endings, prose wrap preserved). EditorConfig is not applied.
-
-`/tmp/prettier-check.files` selects the files when you do not pass paths after `--`. An empty file skips the session. When that list is absent, unmatched globs are not an error.
+`nox -s format` also checks YAML with yamlfix and `src/share/yamlfix/pyproject.toml`. It does not add a document-start marker. `/tmp/format.files` selects Markdown and YAML files for that session. An empty list skips it. A `.toml` path is reported and not formatted.
 
 ### Terraform
 
@@ -145,14 +137,7 @@ When `error_as_warning` is unset, this check warns and exits successfully. Set i
 
 ### Spelling
 
-`nox -s cspell` spell-checks text with CSpell 6. The bundled dictionary is `src/share/cspell/cspell.json`. The session writes a merged config to `/tmp/cspell.yml` that imports:
-
-- the bundled dictionary
-- `CSPELL_CONFIG_FILE`, when that variable is set
-- `CSPELL_CONFIG_CONTENT_JSON`, written to `/tmp/cspell.pipeline.json` when set
-- files in the workspace root whose names match `*cspell.*`
-
-The default glob is `**`. `/tmp/cspell.files` replaces it. If the workspace root has no `*cspell.*` file, a CSpell failure is reported as a warning. If a project dictionary is present, the result follows `ERROR_AS_WARNING` (default: fail).
+`nox -s codespell` spell-checks text with codespell 2.4.1. Allowed words live in `src/share/codespell/ignore-words.txt`. `CODESPELL_IGNORE_WORDS` adds another ignore file, and so does any `*codespell*` file in the workspace root. URIs are not spell-checked. The default target is the current directory. `/tmp/codespell.files` replaces it. If the workspace root has no `*codespell*` file, a failure is reported as a warning. If a project word list is present, the result follows `codespell.error_as_warning`, then `ERROR_AS_WARNING` (default: fail).
 
 ### Git branch
 
@@ -160,9 +145,9 @@ The default glob is `**`. `/tmp/cspell.files` replaces it. If the workspace root
 
 Order of the pattern:
 
-1. `build-validation.yml` key `branch-name-validation.branch_regex`
-2. environment variable `BRANCH_NAME_REGULAR_EXPRESSION`
-3. the built-in pattern
+- `build-validation.yml` key `branch-name-validation.branch_regex`
+- environment variable `BRANCH_NAME_REGULAR_EXPRESSION`
+- the built-in pattern
 
 Built-in pattern:
 
@@ -187,16 +172,16 @@ Positional paths after `--` always win. Otherwise a session reads a file list fr
 | --- | --- |
 | `/tmp/python.files` | `black`, `flake8`, `ruff`, `pylint`, `mypy` |
 | `/tmp/yamllint.files` | `yamllint` |
-| `/tmp/markdownlint-cli2.files` | `markdownlint` |
-| `/tmp/prettier-check.files` | `prettier` |
-| `/tmp/cspell.files` | `cspell` |
+| `/tmp/markdownlint.files` | `markdownlint` |
+| `/tmp/format.files` | `format` |
+| `/tmp/codespell.files` | `codespell` |
 | `/tmp/terraform-format.files` | `terraform-format` |
 
 One path per line. A missing list means "use the session default". A list file that exists but has no paths skips the check.
 
 ## Configuration
 
-Optional file `build-validation.yml` in the working directory. `GBV_CONFIG_FILE` points at a specific file and ignores the default name. The root key may be `build-validation` or `global-build-validation`.
+This repository's settings are in `build-validation.yml`. `GBV_CONFIG_FILE` points at a different file and ignores that name. The root key may be `build-validation` or `global-build-validation`.
 
 `error_as_warning: true` turns a failed check into a warning. The session still prints GitHub Actions (`::warning::` / `::error::`) and Azure Pipelines (`##vso[task.logissue]`) lines. When the key is absent, `ERROR_AS_WARNING` is used. The usual default is a hard failure. The unreferenced image check defaults to a warning.
 
@@ -223,7 +208,11 @@ build-validation:
     error_as_warning: false
   markdown-link-check:
     error_as_warning: false
-  prettier:
+  markdown-format:
+    error_as_warning: false
+  yaml-format:
+    error_as_warning: false
+  codespell:
     error_as_warning: false
   terraform-format:
     error_as_warning: false
@@ -238,6 +227,12 @@ build-validation:
 
 `upload_junit` for pylint and pytest prints `##vso[task.setvariable variable=UploadJunit]`.
 
+## GitHub Actions
+
+`.github/workflows/analysis.yml` runs the sessions named by `build-validation.yml` on every push and pull request. Python, Markdown, YAML, spelling, images, and the branch name run on Ubuntu with Python 3.12. Terraform sessions run only when the checkout contains a `.tf` file.
+
+The workflow sets `BRANCH_TO_CHECK` from the pull request head branch, or from the pushed branch. Checkout leaves git in a detached `HEAD`, so the branch session does not use `git rev-parse`.
+
 ## Environment variables
 
 | Variable | Effect |
@@ -246,13 +241,13 @@ build-validation:
 | `ERROR_AS_WARNING` | `true` or `false`. Used when the config key is absent. |
 | `BRANCH_TO_CHECK` | Branch name to validate. |
 | `BRANCH_NAME_REGULAR_EXPRESSION` | Branch pattern when config does not set one. |
-| `CSPELL_CONFIG_FILE` | Extra CSpell config to import. |
-| `CSPELL_CONFIG_CONTENT_JSON` | JSON written to `/tmp/cspell.pipeline.json` and imported. |
+| `CODESPELL_IGNORE_WORDS` | Extra codespell ignore-word file. |
+| `BASEURL` | Replaces `{{BASEURL}}` in Markdown link patterns. |
 | `AUTHORIZATION_PAT` | Personal access token for markdown link checks. Sent as Basic auth. |
 | `AUTHORIZATION_TOKEN` | Raw `Authorization` header for markdown link checks. |
 | `GBV_NOXFILE` | Noxfile used by `python3 -m src.entrypoint`. |
 | `GBV_DEFAULT_SESSION` | Session used when the entrypoint is started with no arguments. |
-| `TF_BUILD` | When `true`, the entrypoint prints `pip freeze` and, if `npm` exists, global npm packages inside Azure log groups. |
+| `TF_BUILD` | When `true`, the entrypoint prints `pip freeze` inside an Azure log group. |
 | `DOCKER_ENTRYPOINT` | Set by the entrypoint. Sessions then use tools already on `PATH` instead of installing them into a nox virtualenv. |
 
 ## Layout
@@ -260,22 +255,22 @@ build-validation:
 ```text
 src/                         Python package
 src/checks/                  Check implementations, one module per area
-src/share/                   Bundled black/flake8/ruff/pylint/mypy/pytest,
-                             yamllint, CSpell, markdownlint, Prettier, and
-                             markdown-link-check configuration
+src/share/                   Bundled checker configuration
 noxfile.py                   Nox sessions
 requirements.txt             Python dependencies
-package.json                 Node dependencies
+build-validation.yml         Check settings for this repository
+.github/workflows/           GitHub Actions analysis workflow
 ```
 
 | Module | Checks |
 | --- | --- |
 | `src/checks/python.py` | black, flake8, ruff, pylint, mypy, pytest |
-| `src/checks/markup.py` | markdownlint, markdown-link-check, Prettier |
+| `src/checks/markup.py` | PyMarkdown, Markdown link check, mdformat, yamlfix |
+| `src/checks/links.py` | HTTP checks used by `markdown-link-check` |
 | `src/checks/yaml.py` | yamllint |
 | `src/checks/terraform.py` | terraform fmt, Checkov |
 | `src/checks/images.py` | unreferenced images |
-| `src/checks/spelling.py` | CSpell |
+| `src/checks/spelling.py` | codespell |
 | `src/checks/branch.py` | branch name |
 
 Directories named `.git`, `repos`, `__pycache__`, and `.pytest_cache`, plus names starting with `.nox` or `.venv`, are skipped when a check walks the tree.

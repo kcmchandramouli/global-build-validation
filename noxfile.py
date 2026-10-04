@@ -14,12 +14,14 @@ ROOT = pathlib.Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Imports follow the sys.path insert above. E402 is flake8; C0413 is pylint.
+# pylint: disable=wrong-import-position
 from src.checks.branch import run_branch_name  # noqa: E402
 from src.checks.images import run_unreferenced_images  # noqa: E402
 from src.checks.markup import (  # noqa: E402
+    run_format as run_source_format,
     run_markdown_link_check,
     run_markdownlint,
-    run_prettier,
 )
 from src.checks.python import black as run_black  # noqa: E402
 from src.checks.python import flake8 as run_flake8  # noqa: E402
@@ -27,7 +29,7 @@ from src.checks.python import mypy as run_mypy  # noqa: E402
 from src.checks.python import pylint as run_pylint  # noqa: E402
 from src.checks.python import pytest as run_pytest  # noqa: E402
 from src.checks.python import ruff as run_ruff  # noqa: E402
-from src.checks.spelling import run_cspell  # noqa: E402
+from src.checks.spelling import run_codespell  # noqa: E402
 from src.checks.terraform import (  # noqa: E402
     run_terraform_format,
     run_terraform_validation,
@@ -39,9 +41,9 @@ ANALYSIS_SESSIONS = (
     *PYTHON_SESSIONS,
     "markdownlint",
     "markdown-link-check",
-    "prettier",
+    "format",
     "yamllint",
-    "cspell",
+    "codespell",
     "terraform-format",
     "terraform-validation",
     "unreferenced-image-check",
@@ -100,28 +102,28 @@ def yamllint(session: nox.Session) -> None:
     run_yamllint(session)
 
 
-@nox.session(python=False)
-def cspell(session: nox.Session) -> None:
-    """Spell-check files. Usage: nox -s cspell."""
-    run_cspell(session)
+@nox.session(reuse_venv=True)
+def codespell(session: nox.Session) -> None:
+    """Spell-check files. Usage: nox -s codespell."""
+    run_codespell(session)
 
 
-@nox.session(python=False)
+@nox.session(reuse_venv=True)
 def markdownlint(session: nox.Session) -> None:
     """Lint Markdown. Usage: nox -s markdownlint."""
     run_markdownlint(session)
 
 
-@nox.session(python=False, name="markdown-link-check")
+@nox.session(reuse_venv=True, name="markdown-link-check")
 def markdown_link_check(session: nox.Session) -> None:
     """Check links in Markdown. Usage: nox -s markdown-link-check."""
     run_markdown_link_check(session)
 
 
-@nox.session(python=False)
-def prettier(session: nox.Session) -> None:
-    """Check Markdown, YAML, and TOML formatting. Usage: nox -s prettier."""
-    run_prettier(session)
+@nox.session(reuse_venv=True, name="format")
+def source_format(session: nox.Session) -> None:
+    """Check Markdown and YAML formatting. Usage: nox -s format."""
+    run_source_format(session)
 
 
 @nox.session(python=False, name="terraform-format")
