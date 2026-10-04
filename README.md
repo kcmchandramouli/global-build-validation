@@ -229,7 +229,7 @@ build-validation:
 
 ## GitHub Actions
 
-`.github/workflows/analysis.yml` runs the sessions named by `build-validation.yml` on every push and pull request. Python, Markdown, YAML, spelling, images, and the branch name run on Ubuntu with Python 3.12. Terraform sessions run only when the checkout contains a `.tf` file.
+`.github/workflows/gbv_actionns_pipeline.yml` runs the sessions named by `build-validation.yml` on every push and pull request. Each job creates a Python 3.12 virtual environment and runs `nox --no-venv` inside it. Terraform sessions run only when the checkout contains a `.tf` file.
 
 The workflow sets `BRANCH_TO_CHECK` from the pull request head branch, or from the pushed branch. Checkout leaves git in a detached `HEAD`, so the branch session does not use `git rev-parse`.
 

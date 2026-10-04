@@ -66,13 +66,17 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: requirements.txt
+      - name: Create virtual environment
+        run: python -m venv .venv
       - name: Install nox
         run: |
-          python -m pip install \
-            "nox~=2024.4.15" \
-            "pyyaml~=6.0"
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
       - name: Run ${{ matrix.session }}
-        run: python -m nox -s "${{ matrix.session }}"
+        run: |
+          source .venv/bin/activate
+          python -m nox --no-venv \
+            -s "${{ matrix.session }}"
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,10 +111,14 @@ jobs:
         with:
           terraform_version: 1.9.8
           terraform_wrapper: false
+      - name: Create virtual environment
+        run: python -m venv .venv
       - name: Install nox
         run: |
-          python -m pip install \
-            "nox~=2024.4.15" \
-            "pyyaml~=6.0"
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
       - name: Run ${{ matrix.session }}
-        run: python -m nox -s "${{ matrix.session }}"
+        run: |
+          source .venv/bin/activate
+          python -m nox --no-venv \
+            -s "${{ matrix.session }}"

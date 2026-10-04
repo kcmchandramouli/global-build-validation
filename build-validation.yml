@@ -1,4 +1,5 @@
-# Settings read by the nox sessions and by .github/workflows/analysis.yml.
+# Settings read by the nox sessions and by
+# .github/workflows/gbv_actionns_pipeline.yml.
 build-validation:
   python:
     black:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import os
 import pathlib
-import sys
 from typing import Any, Generator
 
 import nox
@@ -103,11 +102,28 @@ def _wrap(session: Any, *config_path: str) -> Generator[None, None, None]:
 
 
 def _install_consumer_packages(session: Any) -> None:
-    """Install consumer requirements if present."""
+    """Install consumer requirements into the session environment."""
     if pathlib.Path("requirements.txt").exists():
-        session.run(sys.executable, "-m", "pip", "install", "-r", "requirements.txt")
+        session.install("-r", "requirements.txt")
     if pathlib.Path("setup.py").exists():
-        session.run(sys.executable, "-m", "pip", "install", ".")
+        session.install(".")
+
+
+def _repository_has_tests(root: pathlib.Path) -> bool:
+    """Return True when the repository contains pytest modules."""
+    skipped = {".git", "repos", "htmlcov", "__pycache__", ".pytest_cache"}
+    for _directory, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if name not in skipped and not name.startswith((".nox", ".venv"))
+        ]
+        for name in filenames:
+            if name.startswith("test_") and name.endswith(".py"):
+                return True
+            if name.endswith("_test.py"):
+                return True
+    return False
 
 
 def black(session: Any) -> None:
@@ -205,6 +221,8 @@ def mypy(session: Any) -> None:
 def pytest(session: Any) -> None:
     """Run pytest with coverage."""
     external = prepare_checker(session, "pytest")
+    if not external:
+        session.install("pyyaml", "nox>=2024.4.15", "requests==2.32.3")
     working_directory = _working_directory(session)
     with session.chdir(working_directory):
         session.env["COVERAGE_FILE"] = str(working_directory / ".coverage")
@@ -219,6 +237,8 @@ def pytest(session: Any) -> None:
             "--ignore-glob=repos/*",
             "--ignore-glob=noxfile.py",
         ]
+        if not session.posargs and not _repository_has_tests(pathlib.Path(".")):
+            args.append("--cov-fail-under=0")
         with _wrap(session, "python", "pytest"):
             _install_consumer_packages(session)
             session.run("pytest", *args, external=external, success_codes=[0, 5])

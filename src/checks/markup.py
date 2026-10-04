@@ -85,6 +85,7 @@ def run_markdown_link_check(session: Any) -> None:
     config = first_file(*candidates)
     if config is None or not config.is_file():
         session.error("Missing markdown-link-check configuration")
+        return
     root = workspace_from(session.invoked_from)
     out_path = pathlib.Path("/tmp/markdown-link-check.json")
     with session.chdir(root):
@@ -92,6 +93,7 @@ def run_markdown_link_check(session: Any) -> None:
             prepare_link_config(config, out_path)
         except ValueError as exc:
             session.error(str(exc))
+            return
         files = list(session.posargs) or walk_files(root, ".md")
         if not files:
             session.log("No Markdown files to check.")
