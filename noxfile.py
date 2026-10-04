@@ -1,132 +1,157 @@
-"""Local helpers for building and running checker images."""
+"""Nox sessions for analysis.
+
+Every analysis check is implemented in the src package and started here.
+"""
 
 from __future__ import annotations
 
-import os
 import pathlib
-import subprocess
+import sys
 
 import nox
-import yaml
 
-ROOT = pathlib.Path(__file__).parent.resolve()
-CATALOG = ROOT / "images" / "catalog.yml"
+ROOT = pathlib.Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-nox.options.sessions = ["list_images"]
+from src.checks.branch import run_branch_name  # noqa: E402
+from src.checks.images import run_unreferenced_images  # noqa: E402
+from src.checks.markup import (  # noqa: E402
+    run_markdown_link_check,
+    run_markdownlint,
+    run_prettier,
+)
+from src.checks.python import black as run_black  # noqa: E402
+from src.checks.python import flake8 as run_flake8  # noqa: E402
+from src.checks.python import mypy as run_mypy  # noqa: E402
+from src.checks.python import pylint as run_pylint  # noqa: E402
+from src.checks.python import pytest as run_pytest  # noqa: E402
+from src.checks.python import ruff as run_ruff  # noqa: E402
+from src.checks.spelling import run_cspell  # noqa: E402
+from src.checks.terraform import (  # noqa: E402
+    run_terraform_format,
+    run_terraform_validation,
+)
+from src.checks.yaml import run_yamllint  # noqa: E402
 
+PYTHON_SESSIONS = ("black", "flake8", "ruff", "pylint", "mypy", "pytest")
+ANALYSIS_SESSIONS = (
+    *PYTHON_SESSIONS,
+    "markdownlint",
+    "markdown-link-check",
+    "prettier",
+    "yamllint",
+    "cspell",
+    "terraform-format",
+    "terraform-validation",
+    "unreferenced-image-check",
+    "branch-name",
+)
 
-def _images() -> list[dict[str, str]]:
-    with CATALOG.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)["images"]
-
-
-def _registry() -> str:
-    return os.environ.get("GBV_IMAGE_REGISTRY", "global-build-validation")
-
-
-@nox.session(python=False)
-def list_images(session: nox.Session) -> None:
-    """Print checker image tags."""
-    for image in _images():
-        session.log(f"{image['tag']:32} {image['dockerfile']}")
-
-
-@nox.session(python=False)
-def build_image(session: nox.Session) -> None:
-    """Build one image: nox -s build_image -- python-validation.v1"""
-    if not session.posargs:
-        session.error("Pass an image tag, for example: nox -s build_image -- yamllint.v1")
-    tag = session.posargs[0]
-    match = next((item for item in _images() if item["tag"] == tag), None)
-    if match is None:
-        session.error(f"Unknown tag {tag!r}. Run: nox -s list_images")
-    image = f"{_registry()}:{tag}"
-    session.run(
-        "docker",
-        "build",
-        "-f",
-        match["dockerfile"],
-        "-t",
-        image,
-        ".",
-        external=True,
-    )
+nox.options.sessions = []
 
 
-@nox.session(python=False)
-def build_all(session: nox.Session) -> None:
-    """Build every checker image."""
-    for image in _images():
-        session.notify("build_image", [image["tag"]])
+@nox.session(reuse_venv=True)
+def black(session: nox.Session) -> None:
+    """Check Python formatting. Usage: nox -s black -- ."""
+    run_black(session)
 
 
-def _host_workspace() -> str:
-    """Return the repo root in a form Docker Desktop accepts on Windows."""
-    host_root = str(ROOT)
-    if os.name == "nt":
-        return host_root.replace("\\", "/")
-    return host_root
+@nox.session(reuse_venv=True)
+def flake8(session: nox.Session) -> None:
+    """Run flake8. Usage: nox -s flake8 -- ."""
+    run_flake8(session)
 
 
-@nox.session(python=False)
-def run_check(session: nox.Session) -> None:
-    """Run a checker image against this repository (Windows and Unix)."""
-    if not session.posargs:
-        session.error("Pass an image tag, for example: nox -s run_check -- yamllint.v1")
-    tag, *args = session.posargs
-    if tag not in {item["tag"] for item in _images()}:
-        session.error(f"Unknown tag {tag!r}. Run: nox -s list_images")
-
-    image = f"{_registry()}:{tag}"
-    inspect = subprocess.run(
-        ["docker", "image", "inspect", image],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if inspect.returncode != 0:
-        session.error(
-            f"Image {image} not found locally. Build it with: nox -s build_image -- {tag}"
-        )
-
-    session.run(
-        "docker",
-        "run",
-        "--rm",
-        "-e",
-        f"ERROR_AS_WARNING={os.environ.get('ERROR_AS_WARNING', 'false')}",
-        "-e",
-        f"BRANCH_TO_CHECK={os.environ.get('BRANCH_TO_CHECK', '')}",
-        "-e",
-        f"TF_BUILD={os.environ.get('TF_BUILD', '')}",
-        "-v",
-        f"{_host_workspace()}:/workspace",
-        "-w",
-        "/workspace",
-        "--entrypoint",
-        "/usr/local/bin/docker_entrypoint.sh",
-        image,
-        *args,
-        external=True,
-    )
+@nox.session(reuse_venv=True)
+def ruff(session: nox.Session) -> None:
+    """Run ruff. Usage: nox -s ruff -- ."""
+    run_ruff(session)
 
 
-@nox.session
-def test(session: nox.Session) -> None:
-    """Run unit tests for config helpers (no Docker required)."""
-    session.install("pyyaml", "pytest")
-    session.run("pytest", "-q", "tests")
+@nox.session(reuse_venv=True)
+def pylint(session: nox.Session) -> None:
+    """Run pylint. Usage: nox -s pylint -- ."""
+    run_pylint(session)
+
+
+@nox.session(reuse_venv=True)
+def mypy(session: nox.Session) -> None:
+    """Run mypy. Usage: nox -s mypy -- ."""
+    run_mypy(session)
+
+
+@nox.session(reuse_venv=True)
+def pytest(session: nox.Session) -> None:
+    """Run pytest with coverage. Usage: nox -s pytest."""
+    run_pytest(session)
 
 
 @nox.session(python=False)
-def helm_lint(session: nox.Session) -> None:
-    """Lint Helm charts."""
-    session.run("helm", "lint", "helm/agent", external=True)
-    session.run(
-        "helm",
-        "lint",
-        "helm/secrets",
-        "--values",
-        "helm/secrets/values.example.yaml",
-        external=True,
-    )
+def python(session: nox.Session) -> None:
+    """Run all Python checkers. Usage: nox -s python -- ."""
+    for name in PYTHON_SESSIONS:
+        session.notify(name, session.posargs)
+
+
+@nox.session(reuse_venv=True)
+def yamllint(session: nox.Session) -> None:
+    """Lint YAML files. Usage: nox -s yamllint -- ."""
+    run_yamllint(session)
+
+
+@nox.session(python=False)
+def cspell(session: nox.Session) -> None:
+    """Spell-check files. Usage: nox -s cspell."""
+    run_cspell(session)
+
+
+@nox.session(python=False)
+def markdownlint(session: nox.Session) -> None:
+    """Lint Markdown. Usage: nox -s markdownlint."""
+    run_markdownlint(session)
+
+
+@nox.session(python=False, name="markdown-link-check")
+def markdown_link_check(session: nox.Session) -> None:
+    """Check links in Markdown. Usage: nox -s markdown-link-check."""
+    run_markdown_link_check(session)
+
+
+@nox.session(python=False)
+def prettier(session: nox.Session) -> None:
+    """Check Markdown, YAML, and TOML formatting. Usage: nox -s prettier."""
+    run_prettier(session)
+
+
+@nox.session(python=False, name="terraform-format")
+def terraform_format(session: nox.Session) -> None:
+    """Check Terraform formatting. Usage: nox -s terraform-format."""
+    run_terraform_format(session)
+
+
+@nox.session(reuse_venv=True, name="terraform-validation")
+def terraform_validation(session: nox.Session) -> None:
+    """Run Checkov on Terraform. Usage: nox -s terraform-validation."""
+    run_terraform_validation(session)
+
+
+@nox.session(reuse_venv=True, name="unreferenced-image-check")
+def unreferenced_image_check(session: nox.Session) -> None:
+    """Find images that nothing references. Usage: nox -s unreferenced-image-check."""
+    run_unreferenced_images(session)
+
+
+@nox.session(python=False, name="branch-name")
+def branch_name(session: nox.Session) -> None:
+    """Validate the git branch name. Usage: nox -s branch-name."""
+    run_branch_name(session)
+
+
+@nox.session(python=False)
+def analyze(session: nox.Session) -> None:
+    """Run every analysis session. Usage: nox -s analyze."""
+    if session.posargs:
+        session.error("Pass paths to one session, for example: nox -s yamllint -- .")
+    for name in ANALYSIS_SESSIONS:
+        session.notify(name)

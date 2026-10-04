@@ -1,6 +1,0 @@
-apiVersion: v2
-name: gbv-agent
-description: Helm chart for an Azure Pipelines agent used by global build validation
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

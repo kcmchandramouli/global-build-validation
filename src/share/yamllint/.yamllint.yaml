@@ -1,0 +1,14 @@
+extends: default
+# Checkouts may use LF or CRLF. Helm templates are Go templates, not plain YAML.
+ignore: |
+  .nox*
+  .venv*
+  .git/
+  repos/
+  helm/**/templates/
+rules:
+  document-start: disable
+  line-length: disable
+  new-lines: disable
+  truthy:
+    check-keys: false
