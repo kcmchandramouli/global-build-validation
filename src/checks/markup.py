@@ -20,8 +20,14 @@ from src.workspace import (
 )
 
 _PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_PYMARKDOWN_EXCLUDES = (".nox*", ".venv*", "repos/**", "**/__pycache__/**", ".git/**")
-_FORMAT_EXCLUDES = (".nox*", ".venv*", "repos/**", ".git/**")
+_PYMARKDOWN_EXCLUDES = (
+    ".nox/**",
+    ".venv/**",
+    "repos/**",
+    "**/__pycache__/**",
+    ".git/**",
+)
+_FORMAT_EXCLUDES = (".nox/**", ".venv/**", "repos/**", ".git/**")
 
 
 def run_markdownlint(session: Any) -> None:
@@ -140,6 +146,26 @@ def _extend_excludes(command: list[str], flag: str) -> None:
         command.extend([flag, pattern])
 
 
+def _markdown_files(root: pathlib.Path, paths: list[str]) -> list[str]:
+    """Expand directories to Markdown files, skipping tool and VCS dirs."""
+    found: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        if path == "." or pathlib.Path(path).is_dir():
+            base = root if path == "." else pathlib.Path(path)
+            matches = [
+                str((base / match).resolve().relative_to(root.resolve()))
+                for match in walk_files(base, ".md")
+            ]
+        else:
+            matches = [path]
+        for match in matches:
+            if match not in seen:
+                seen.add(match)
+                found.append(match)
+    return found
+
+
 def run_format(session: Any) -> None:
     """Check Markdown with mdformat and YAML with yamlfix.
 
@@ -164,6 +190,7 @@ def run_format(session: Any) -> None:
         toml_files = [path for path in skipped if path.casefold().endswith(".toml")]
         if toml_files:
             session.log("TOML formatting is not checked: " + ", ".join(toml_files))
+        markdown = _markdown_files(root, markdown)
         if markdown:
             command = [
                 "mdformat",
@@ -173,7 +200,6 @@ def run_format(session: Any) -> None:
                 "--end-of-line",
                 "lf",
             ]
-            _extend_excludes(command, "--exclude")
             with wrap(
                 session,
                 "Markdown format failed",
