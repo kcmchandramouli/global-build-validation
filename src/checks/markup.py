@@ -20,13 +20,6 @@ from src.workspace import (
 )
 
 _PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_PYMARKDOWN_EXCLUDES = (
-    ".nox/**",
-    ".venv/**",
-    "repos/**",
-    "**/__pycache__/**",
-    ".git/**",
-)
 _FORMAT_EXCLUDES = (".nox/**", ".venv/**", "repos/**", ".git/**")
 
 
@@ -36,16 +29,19 @@ def run_markdownlint(session: Any) -> None:
         session.install("pymarkdownlnt==0.9.32")
     root = workspace_from(session.invoked_from)
     with session.chdir(root):
-        skip, files = resolve_targets(
+        skip, targets = resolve_targets(
             list(session.posargs), "markdownlint.files", ["."]
         )
         if skip:
             session.skip("No files to check")
-        command = ["pymarkdown", "-d", "md013", "scan", "-r"]
-        for pattern in _PYMARKDOWN_EXCLUDES:
-            command.extend(["-e", pattern])
+            return
+        files = _markdown_files(root, targets)
+        if not files:
+            session.skip("No files to check")
+            return
+        command = ["pymarkdown", "-d", "md013", "scan", *files]
         with wrap(session, "Markdownlint failed", "markdownlint", "error_as_warning"):
-            session.run(*command, *files, external=in_container())
+            session.run(*command, external=in_container())
 
 
 def prepare_link_config(config_path: pathlib.Path, out_path: pathlib.Path) -> None:
