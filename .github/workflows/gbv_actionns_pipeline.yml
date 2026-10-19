@@ -1,3 +1,4 @@
+# Scans this repository. Other repositories call gbv_pr_check.yml instead.
 name: GBV Analysis Action Pipeline
 on:
   pull_request:

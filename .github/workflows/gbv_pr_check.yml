@@ -1,0 +1,158 @@
+# Reusable pull request check. Another repository calls this workflow; the
+# caller's checkout is scanned, and the checkers come from this repository.
+name: Global build validation
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version used to run the checks
+        type: string
+        default: "3.12"
+      terraform-version:
+        description: Terraform CLI version used when the caller has .tf files
+        type: string
+        default: "1.9.8"
+    secrets:
+      gbv_checkout_token:
+        description: >-
+          Token with contents:read on this validation repository.
+          Required only when this repository is private.
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: gbv-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  BRANCH_TO_CHECK: ${{ github.head_ref || github.ref_name }}
+jobs:
+  detect:
+    name: Detect Terraform
+    runs-on: ubuntu-latest
+    outputs:
+      terraform: ${{ steps.files.outputs.terraform }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: source
+      - name: Look for Terraform files
+        id: files
+        working-directory: source
+        run: |
+          if git ls-files -- "*.tf" | grep -q .; then
+            echo "terraform=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "terraform=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  gbv_analysis:
+    name: ${{ matrix.session }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        session:
+          - black
+          - flake8
+          - ruff
+          - pylint
+          - mypy
+          - pytest
+          - markdownlint
+          - markdown-link-check
+          - format
+          - yamllint
+          - codespell
+          - unreferenced-image-check
+          - branch-name
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: source
+      - name: Checkout global build validation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: gbv
+          token: ${{ secrets.gbv_checkout_token || github.token }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: gbv/requirements.txt
+      - name: Create virtual environment
+        working-directory: gbv
+        run: python -m venv .venv
+      - name: Install nox
+        working-directory: gbv
+        run: |
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
+      - name: Run ${{ matrix.session }}
+        working-directory: source
+        run: |
+          source "${GITHUB_WORKSPACE}/gbv/.venv/bin/activate"
+          python -m nox --noxfile "${GITHUB_WORKSPACE}/gbv/noxfile.py" -s "${{ matrix.session }}"
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.session }}
+          path: source/*.results.xml
+          if-no-files-found: ignore
+
+  terraform:
+    name: ${{ matrix.session }}
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        session:
+          - terraform-format
+          - terraform-validation
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: source
+      - name: Checkout global build validation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: gbv
+          token: ${{ secrets.gbv_checkout_token || github.token }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: gbv/requirements.txt
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+      - name: Create virtual environment
+        working-directory: gbv
+        run: python -m venv .venv
+      - name: Install nox
+        working-directory: gbv
+        run: |
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
+      - name: Run ${{ matrix.session }}
+        working-directory: source
+        run: |
+          source "${GITHUB_WORKSPACE}/gbv/.venv/bin/activate"
+          python -m nox --noxfile "${GITHUB_WORKSPACE}/gbv/noxfile.py" -s "${{ matrix.session }}"
