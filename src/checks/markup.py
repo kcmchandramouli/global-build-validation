@@ -20,7 +20,6 @@ from src.workspace import (
 )
 
 _PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_FORMAT_EXCLUDES = (".nox/**", ".venv/**", "repos/**", ".git/**")
 
 
 def run_markdownlint(session: Any) -> None:
@@ -136,14 +135,10 @@ def _partition(files: list[str]) -> tuple[list[str], list[str], list[str]]:
     return markdown, yaml_files, skipped
 
 
-def _extend_excludes(command: list[str], flag: str) -> None:
-    """Append repeated exclude flags."""
-    for pattern in _FORMAT_EXCLUDES:
-        command.extend([flag, pattern])
-
-
-def _markdown_files(root: pathlib.Path, paths: list[str]) -> list[str]:
-    """Expand directories to Markdown files, skipping tool and VCS dirs."""
+def _files_with_suffixes(
+    root: pathlib.Path, paths: list[str], suffixes: tuple[str, ...]
+) -> list[str]:
+    """Expand directories to files with these suffixes, skipping tool and VCS dirs."""
     found: list[str] = []
     seen: set[str] = set()
     for path in paths:
@@ -151,15 +146,23 @@ def _markdown_files(root: pathlib.Path, paths: list[str]) -> list[str]:
             base = root if path == "." else pathlib.Path(path)
             matches = [
                 str((base / match).resolve().relative_to(root.resolve()))
-                for match in walk_files(base, ".md")
+                for suffix in suffixes
+                for match in walk_files(base, suffix)
             ]
-        else:
+        elif path.casefold().endswith(suffixes):
             matches = [path]
+        else:
+            matches = []
         for match in matches:
             if match not in seen:
                 seen.add(match)
                 found.append(match)
     return found
+
+
+def _markdown_files(root: pathlib.Path, paths: list[str]) -> list[str]:
+    """Expand directories to Markdown files, skipping tool and VCS dirs."""
+    return _files_with_suffixes(root, paths, (".md",))
 
 
 def run_format(session: Any) -> None:
@@ -187,6 +190,7 @@ def run_format(session: Any) -> None:
         if toml_files:
             session.log("TOML formatting is not checked: " + ", ".join(toml_files))
         markdown = _markdown_files(root, markdown)
+        yaml_files = _files_with_suffixes(root, yaml_files, (".yaml", ".yml"))
         if markdown:
             command = [
                 "mdformat",
@@ -204,7 +208,13 @@ def run_format(session: Any) -> None:
             ):
                 session.run(*command, *markdown, external=in_container())
         if yaml_files:
-            command = ["yamlfix", "--check", "-c", str(yamlfix_config)]
-            _extend_excludes(command, "-e")
+            session.env["PYTHONPATH"] = str(_PACKAGE_ROOT)
+            command = [
+                "python",
+                "-m",
+                "src.checks.yaml_format",
+                str(yamlfix_config),
+                *yaml_files,
+            ]
             with wrap(session, "YAML format failed", "yaml-format", "error_as_warning"):
-                session.run(*command, *yaml_files, external=in_container())
+                session.run(*command, external=in_container())
