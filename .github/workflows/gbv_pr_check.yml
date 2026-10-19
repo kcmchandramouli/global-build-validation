@@ -7,11 +7,11 @@ on:
       python-version:
         description: Python version used to run the checks
         type: string
-        default: "3.12"
+        default: '3.12'
       terraform-version:
         description: Terraform CLI version used when the caller has .tf files
         type: string
-        default: "1.9.8"
+        default: 1.9.8
     secrets:
       gbv_checkout_token:
         description: >-
