@@ -1,5 +1,5 @@
 # Settings read by the nox sessions and by
-# .github/workflows/gbv_actionns_pipeline.yml.
+# .github/workflows/gbv_actionns_pipeline.yml and gbv_pr_check.yml.
 build-validation:
   python:
     black:
