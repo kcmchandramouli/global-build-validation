@@ -1,0 +1,116 @@
+name: GBV Analysis Action Pipeline
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: analysis-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  BRANCH_TO_CHECK: ${{ github.head_ref || github.ref_name }}
+jobs:
+  detect:
+    name: Detect Terraform
+    runs-on: ubuntu-latest
+    outputs:
+      terraform: ${{ steps.files.outputs.terraform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Look for Terraform files
+        id: files
+        run: |
+          if git ls-files -- "*.tf" | grep -q .; then
+            echo "terraform=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "terraform=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  gbv_analysis:
+    name: ${{ matrix.session }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        session:
+          - black
+          - flake8
+          - ruff
+          - pylint
+          - mypy
+          - pytest
+          - markdownlint
+          - markdown-link-check
+          - format
+          - yamllint
+          - codespell
+          - unreferenced-image-check
+          - branch-name
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Create virtual environment
+        run: python -m venv .venv
+      - name: Install nox
+        run: |
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
+      - name: Run ${{ matrix.session }}
+        run: |
+          source .venv/bin/activate
+          python -m nox -s "${{ matrix.session }}"
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.session }}
+          path: '*.results.xml'
+          if-no-files-found: ignore
+
+  terraform:
+    name: ${{ matrix.session }}
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        session:
+          - terraform-format
+          - terraform-validation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - name: Create virtual environment
+        run: python -m venv .venv
+      - name: Install nox
+        run: |
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
+      - name: Run ${{ matrix.session }}
+        run: |
+          source .venv/bin/activate
+          python -m nox -s "${{ matrix.session }}"

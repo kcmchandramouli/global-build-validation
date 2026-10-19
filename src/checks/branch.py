@@ -11,8 +11,8 @@ from src.config import error_as_warning, get_config_value
 from src.runner import report
 
 DEFAULT_BRANCH_REGEX = (
-    r"^(main|master|develop|(feature|feat|fix|hotfix|release|chore)"
-    r"/[A-Za-z0-9._-]+)$"
+    r"^(task|feature)/(main|master|develop|maintenance|staging|prod)"
+    r"/[A-Za-z0-9._-]+$"
 )
 
 

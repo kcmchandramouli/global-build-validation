@@ -9,22 +9,18 @@ from pathlib import Path
 from typing import Any, Optional
 
 from src.config import as_bool, find_config_file, get_config_value
+from src.output import ci, info
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif")
-
-
-def _emit(message: str) -> None:
-    """Print a message immediately."""
-    print(message, flush=True)  # noqa: T201
 
 
 def _configuration(*config_path: str) -> Optional[bool]:
     """Read a nested boolean from the consumer config file."""
     configuration_file = find_config_file()
     if configuration_file is None:
-        _emit("No build-validation.yml found.")
+        info("No build-validation.yml found.")
         return None
-    _emit(f"Reading configuration file {configuration_file!s}...")
+    info(f"Reading configuration file {configuration_file!s}...")
     return as_bool(get_config_value(*config_path))
 
 
@@ -59,23 +55,23 @@ def scan_unreferenced_images() -> int:
     def is_referenced(img_filename: str) -> bool:
         for filepath in files_to_search:
             if img_filename in _read_file(filepath):
-                _emit(f"Found reference in {filepath}")
+                info(f"Found reference in {filepath}")
                 return True
         return False
 
     found_unreferenced_image = False
     for img_file in image_files:
-        _emit(f"\nSearching image {img_file.name}...")
+        info(f"Searching image {img_file.name}...")
         if not is_referenced(img_file.name):
-            _emit(f"::warning::Found unreferenced image {img_file}")
-            issue = (
-                f"##vso[task.logissue type=warning]Found unreferenced image {img_file}"
+            ci(f"::warning::Found unreferenced image {img_file}")
+            ci(
+                "##vso[task.logissue type=warning]"
+                f"Found unreferenced image {img_file}"
             )
-            _emit(issue)
             found_unreferenced_image = True
 
     if not found_unreferenced_image:
-        _emit("No unreferenced images found.")
+        info("No unreferenced images found.")
         return 0
 
     warning = _configuration("unreferenced-image-check", "error_as_warning")
@@ -83,13 +79,13 @@ def scan_unreferenced_images() -> int:
         warning = os.getenv("ERROR_AS_WARNING", "true").casefold() == "true"
     message = "Found unreferenced images"
     if warning:
-        _emit(f"::warning::{message} (warn only)")
-        _emit(f"##vso[task.logissue type=warning]{message} (warn only)")
-        _emit("##vso[task.complete result=SucceededWithIssues]")
+        ci(f"::warning::{message} (warn only)")
+        ci(f"##vso[task.logissue type=warning]{message} (warn only)")
+        ci("##vso[task.complete result=SucceededWithIssues]")
         return 0
-    _emit(f"::error::{message}")
-    _emit(f"##vso[task.logissue type=error]{message}")
-    _emit("##vso[task.complete result=Failed]")
+    ci(f"::error::{message}")
+    ci(f"##vso[task.logissue type=error]{message}")
+    ci("##vso[task.complete result=Failed]")
     return 1
 
 

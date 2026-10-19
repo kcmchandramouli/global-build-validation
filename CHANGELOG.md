@@ -14,11 +14,13 @@ Analysis is a Python package in `src/`, started only through nox sessions in `no
 | `src/runner.py` | Turns a tool failure into a warning or a hard error, and prints GitHub and Azure annotation lines on their own. |
 | `src/checks/python.py` | Runs black, flake8, ruff, pylint, mypy, and pytest. Installs the pinned tools locally and uses configs in `src/share/python-validation/`. |
 | `src/checks/yaml.py` | Runs yamllint 1.35.1 with `src/share/yamllint/.yamllint.yaml`. |
-| `src/checks/markup.py` | Lints Markdown, checks Markdown links (optional auth header), and runs Prettier on Markdown, YAML, and TOML. |
+| `src/checks/markup.py` | Lints Markdown with PyMarkdown, checks links over HTTP, and checks Markdown and YAML formatting with mdformat and yamlfix. |
+| `src/checks/links.py` | Reads Markdown links and checks HTTP status, ignore patterns, replacements, and optional auth. |
 | `src/checks/terraform.py` | Checks `terraform fmt` on `.tf` files and runs Checkov 3.2.268 for Terraform. |
 | `src/checks/images.py` | Finds git-tracked `.jpg`, `.jpeg`, `.png`, and `.gif` files that no other tracked file names. |
-| `src/checks/spelling.py` | Runs CSpell 6, merging the bundled dictionary with project and pipeline config. |
+| `src/checks/spelling.py` | Runs codespell with the bundled ignore-word list. |
 | `src/checks/branch.py` | Checks the git branch against `branch_regex`, then `BRANCH_NAME_REGULAR_EXPRESSION`, then the built-in pattern. |
-| `src/share/` | Checker configuration shipped with the package: flake8, ruff, mypy, pylint, pytest coverage, yamllint, CSpell, markdownlint, Prettier, and markdown-link-check. |
+| `src/share/` | Checker configuration shipped with the package: flake8, ruff, mypy, pylint, pytest coverage, yamllint, codespell, yamlfix, and markdown-link-check. |
 | `requirements.txt` | Python dependencies the sessions install. |
-| `package.json` | Node dependencies fetched with `npx` for spelling, Markdown, and Prettier. |
+| `build-validation.yml` | Check settings for this repository: failure mode, JUnit upload, and the branch pattern. |
+| `.github/workflows/gbv_actionns_pipeline.yml` | Runs the configured nox sessions on GitHub Actions inside a Python 3.12 virtual environment. |

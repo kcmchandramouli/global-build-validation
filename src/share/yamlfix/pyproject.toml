@@ -1,0 +1,5 @@
+[tool.yamlfix]
+explicit_start = false
+sequence_style = "keep_style"
+line_length = 88
+whitelines = 1

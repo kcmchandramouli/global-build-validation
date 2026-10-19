@@ -9,6 +9,8 @@ from typing import Any, Iterable, Optional, Sequence, Union
 
 import yaml
 
+from src.output import result
+
 CONFIG_FILES = ("build-validation.yml",)
 ROOT_KEYS = ("build-validation", "global-build-validation")
 CONFIG_FILE_ENV = "GBV_CONFIG_FILE"
@@ -92,10 +94,10 @@ def error_as_warning(*keys: str, default: bool = False) -> bool:
 
 
 def main(argv: Iterable[str]) -> int:
-    """Print a nested config value for command-line use."""
+    """Write a nested config value for command-line use."""
     value = get_config_value(*list(argv)[1:])
     if value is not None:
-        print(value)  # noqa: T201
+        result(value)
     return 0
 
 

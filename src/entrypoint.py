@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from src.output import ci, error
 
 NOXFILE_ENV = "GBV_NOXFILE"
 DEFAULT_SESSION_ENV = "GBV_DEFAULT_SESSION"
@@ -50,19 +51,17 @@ def build_nox_command(
 
 
 def emit_ci_toolchain() -> None:
-    """Print installed tool versions when Azure Pipelines set TF_BUILD."""
+    """Show installed tool versions when Azure Pipelines set TF_BUILD."""
     if os.environ.get("TF_BUILD", "").casefold() != "true":
         return
     _dump_group("Dump python packages", [sys.executable, "-m", "pip", "freeze"])
-    if shutil.which("npm"):
-        _dump_group("Dump npm versions", ["npm", "list", "--global", "--all"])
 
 
 def _dump_group(title: str, command: list[str]) -> None:
-    """Print an Azure log group around a best-effort version command."""
-    print(f"##[group]{title}", flush=True)  # noqa: T201
+    """Wrap a best-effort version command in an Azure log group."""
+    ci(f"##[group]{title}")
     subprocess.run(command, check=False)
-    print("##[endgroup]", flush=True)  # noqa: T201
+    ci("##[endgroup]")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,10 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         os.execvp(args[0], args)
     default_session = os.environ.get(DEFAULT_SESSION_ENV, "")
     if not args and not default_session:
-        print(  # noqa: T201
-            "Pass a nox session, for example: python3 -m src.entrypoint -s yamllint",
-            file=sys.stderr,
-        )
+        error("Pass a nox session, for example: python3 -m src.entrypoint -s yamllint")
         return 2
     command = build_nox_command(
         args,
