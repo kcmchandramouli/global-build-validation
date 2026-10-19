@@ -152,16 +152,16 @@ Order of the pattern:
 Built-in pattern:
 
 ```text
-^(main|master|develop|(feature|feat|fix|hotfix|release|chore)/[A-Za-z0-9._-]+)$
+^(task|feature)/(main|master|develop|maintenance|staging|prod)/[A-Za-z0-9._-]+$
 ```
 
-Examples that match: `main`, `develop`, `feature/gbv-v1`, `fix/bug.1`. Examples that do not: `feature/master/gbv-v1`, an empty name.
+Examples that match: `feature/master/actions_pipeline`, `task/develop/add-login`, `feature/maintenance/patch.1`. Examples that do not: `main`, `feature/gbv-v1`, an empty name.
 
 `BRANCH_TO_CHECK` supplies the name. `refs/heads/` and `refs/pull/` prefixes are removed. When `BRANCH_TO_CHECK` is empty, the session uses `git rev-parse --abbrev-ref HEAD`. A detached `HEAD` is treated as an empty name and fails the default pattern.
 
 ```bash
+BRANCH_TO_CHECK=feature/master/actions_pipeline nox -s branch-name
 BRANCH_TO_CHECK=feature/gbv-v1 nox -s branch-name
-BRANCH_TO_CHECK=feature/master/gbv-v1 nox -s branch-name
 ```
 
 ## Choosing files in CI
@@ -222,7 +222,7 @@ build-validation:
     error_as_warning: true
   branch-name-validation:
     error_as_warning: false
-    branch_regex: "^(main|master|develop|(feature|feat|fix|hotfix|release|chore)/[A-Za-z0-9._-]+)$"
+    branch_regex: "^(task|feature)/(main|master|develop|maintenance|staging|prod)/[A-Za-z0-9._-]+$"
 ```
 
 `upload_junit` for pylint and pytest prints `##vso[task.setvariable variable=UploadJunit]`.

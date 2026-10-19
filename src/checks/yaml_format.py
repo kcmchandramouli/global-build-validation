@@ -14,6 +14,8 @@ from yamlfix.config import configure_yamlfix
 from yamlfix.model import YamlfixConfig
 from yamlfix.services import fix_code
 
+from src.output import error, info
+
 _BLOCK = re.compile(r"^.*:\s+(\|[-+]?)(?:\s+#.*)?$")
 _JOB_KEY = re.compile(r"^  [A-Za-z_][A-Za-z0-9_-]*:$")
 
@@ -34,12 +36,10 @@ def check_files(config_path: str, files: list[str]) -> int:
         source = Path(file_name).read_text(encoding="utf-8")
         if format_yaml(source, config) != source:
             changed.append(file_name)
-            print(f"Would fix {file_name}")  # noqa: T201
+            info(f"Would fix {file_name}")
     if changed:
         return 1
-    print(  # noqa: T201
-        f"Checked {len(files)} files: 0 fixed, {len(files)} left unchanged"
-    )
+    info(f"Checked {len(files)} files: 0 fixed, {len(files)} left unchanged")
     return 0
 
 
@@ -120,10 +120,7 @@ def _with_final_newline(text: str) -> str:
 def main(argv: list[str]) -> int:
     """Check files passed after the yamlfix config path."""
     if len(argv) < 3:
-        print(  # noqa: T201
-            "usage: python -m src.checks.yaml_format CONFIG FILE...",
-            file=sys.stderr,
-        )
+        error("usage: python -m src.checks.yaml_format CONFIG FILE...")
         return 2
     return check_files(argv[1], argv[2:])
 

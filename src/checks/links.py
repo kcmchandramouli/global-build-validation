@@ -13,6 +13,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from src.output import error
+
 _FENCE = re.compile(r"```.*?```", re.DOTALL)
 _INLINE = re.compile(r"(?<!!)\[(?:\\.|[^\[\]\\])*\]\(\s*<?([^)\s>]+)>?")
 _ANGLE = re.compile(r"<(https?://[^>\s]+)>")
@@ -155,22 +157,16 @@ def main(argv: list[str] | None = None) -> int:
     """Check links. Arguments are a config path followed by Markdown files."""
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) < 2:
-        print(  # noqa: T201
-            "usage: python -m src.checks.links CONFIG.json FILE.md ...",
-            file=sys.stderr,
-        )
+        error("usage: python -m src.checks.links CONFIG.json FILE.md ...")
         return 2
     config_path, *files = args
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
     if not isinstance(config, dict):
-        print(  # noqa: T201
-            "markdown-link-check configuration must be a JSON object",
-            file=sys.stderr,
-        )
+        error("markdown-link-check configuration must be a JSON object")
         return 2
     errors = check_files(files, config)
     for line in errors:
-        print(line, file=sys.stderr)  # noqa: T201
+        error(line)
     return 1 if errors else 0
 
 

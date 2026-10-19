@@ -36,4 +36,4 @@ build-validation:
     error_as_warning: true
   branch-name-validation:
     error_as_warning: false
-    branch_regex: ^(main|master|develop|(feature|feat|fix|hotfix|release|chore)/[A-Za-z0-9._-]+)$
+    branch_regex: ^(task|feature)/(main|master|develop|maintenance|staging|prod)/[A-Za-z0-9._-]+$

@@ -10,6 +10,7 @@ from typing import Any, Generator
 import nox
 
 from src.config import as_bool, error_as_warning, find_config_file, get_config_value
+from src.output import ci
 from src.runner import report
 from src.workspace import SHARE, in_container
 
@@ -82,7 +83,7 @@ def _check_upload_junit(session: Any, *config_path: str) -> None:
     upload_junit = _configuration(session, *config_path)
     if isinstance(upload_junit, bool):
         value = str(upload_junit).lower()
-        print(f"##vso[task.setvariable variable=UploadJunit]{value}")  # noqa: T201
+        ci(f"##vso[task.setvariable variable=UploadJunit]{value}")
 
 
 @contextlib.contextmanager

@@ -8,16 +8,12 @@ from typing import Any, Generator
 import nox
 
 from src.config import error_as_warning
+from src.output import ci
 from src.workspace import bundled_config
 
 
 class CheckFailed(Exception):
     """A check failed before the underlying tool exited."""
-
-
-def _emit(line: str) -> None:
-    """Print a CI command on its own line, without a nox prefix."""
-    print(line, flush=True)  # noqa: T201
 
 
 def report(session: Any, message: str, warning: bool, detail: str) -> None:
@@ -29,14 +25,14 @@ def report(session: Any, message: str, warning: bool, detail: str) -> None:
     """
     if warning:
         summary = f"{message} (warn only)"
-        _emit(f"::warning::{summary}")
-        _emit(f"##vso[task.logissue type=warning]{summary}")
-        _emit("##vso[task.complete result=SucceededWithIssues]")
+        ci(f"::warning::{summary}")
+        ci(f"##vso[task.logissue type=warning]{summary}")
+        ci("##vso[task.complete result=SucceededWithIssues]")
         session.warn(f"{summary}: {detail}")
         return
-    _emit(f"::error::{message}")
-    _emit(f"##vso[task.logissue type=error]{message}")
-    _emit("##vso[task.complete result=Failed]")
+    ci(f"::error::{message}")
+    ci(f"##vso[task.logissue type=error]{message}")
+    ci("##vso[task.complete result=Failed]")
     session.error(f"{message}: {detail}")
 
 
