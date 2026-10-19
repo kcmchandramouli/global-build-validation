@@ -229,9 +229,47 @@ build-validation:
 
 ## GitHub Actions
 
-`.github/workflows/gbv_actionns_pipeline.yml` runs the sessions named by `build-validation.yml` on every push and pull request. Each job creates a Python 3.12 virtual environment and runs `nox --no-venv` inside it. Terraform sessions run only when the checkout contains a `.tf` file.
+`.github/workflows/gbv_actionns_pipeline.yml` runs the sessions on every push and pull request to this repository. Each job creates a Python 3.12 virtual environment and runs `nox` inside it. Terraform sessions run only when the checkout contains a `.tf` file.
 
 The workflow sets `BRANCH_TO_CHECK` from the pull request head branch, or from the pushed branch. Checkout leaves git in a detached `HEAD`, so the branch session does not use `git rev-parse`.
+
+### Pull request check in another repository
+
+`.github/workflows/gbv_pr_check.yml` is a reusable workflow. A calling repository checks out its own files and runs these sessions against that checkout. The whole tree is scanned. Checks read `build-validation.yml` from the calling repository when that file exists, and otherwise use the built-in failure mode and branch pattern.
+
+Add this workflow in the other repository as `.github/workflows/global-build-validation.yml`. Replace `OWNER` and `REF` with this repository's owner and a branch, tag, or commit SHA.
+
+```yaml
+name: Global build validation
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+permissions:
+  contents: read
+jobs:
+  standards:
+    uses: OWNER/global-build-validation/.github/workflows/gbv_pr_check.yml@REF
+```
+
+Each session is a separate check, named `standards / black`, `standards / yamllint`, and so on. After the first run, require those checks in the calling repository's branch protection rules.
+
+Copy `build-validation.yml` into the calling repository to choose which failures are warnings and which branch names are allowed. The built-in branch pattern accepts names such as `feature/main/add-login` and rejects names such as `feature/add-login`.
+
+Terraform jobs are added only when the calling repository tracks a `.tf` file.
+
+This repository must allow the caller to use its workflows (repository **Settings**, **Actions**, **General**, **Access**). When this repository is public, the caller's `GITHUB_TOKEN` can clone it. When it is private, pass a token that can read it:
+
+```yaml
+jobs:
+  standards:
+    uses: OWNER/global-build-validation/.github/workflows/gbv_pr_check.yml@REF
+    secrets:
+      gbv_checkout_token: ${{ secrets.GBV_CHECKOUT_TOKEN }}
+```
+
+Optional inputs are `python-version` (default `3.12`) and `terraform-version` (default `1.9.8`).
 
 ## Environment variables
 
@@ -259,7 +297,7 @@ src/share/                   Bundled checker configuration
 noxfile.py                   Nox sessions
 requirements.txt             Python dependencies
 build-validation.yml         Check settings for this repository
-.github/workflows/           GitHub Actions analysis workflow
+.github/workflows/           Analysis workflow and reusable pull request check
 ```
 
 | Module | Checks |

@@ -24,3 +24,4 @@ Analysis is a Python package in `src/`, started only through nox sessions in `no
 | `requirements.txt` | Python dependencies the sessions install. |
 | `build-validation.yml` | Check settings for this repository: failure mode, JUnit upload, and the branch pattern. |
 | `.github/workflows/gbv_actionns_pipeline.yml` | Runs the configured nox sessions on GitHub Actions inside a Python 3.12 virtual environment. |
+| `.github/workflows/gbv_pr_check.yml` | Reusable workflow another repository calls so its own checkout is scanned with these sessions. |
