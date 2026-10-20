@@ -141,7 +141,7 @@ When `error_as_warning` is unset, this check warns and exits successfully. Set i
 
 ### Git branch
 
-`nox -s branch-name` checks the branch name against a regular expression.
+`nox -s branch-name` checks `task` and `feature` branch names against a regular expression. `main`, `master`, and git tags are allowed and are not compared with that expression.
 
 Order of the pattern:
 
@@ -149,18 +149,19 @@ Order of the pattern:
 - environment variable `BRANCH_NAME_REGULAR_EXPRESSION`
 - the built-in pattern
 
-Built-in pattern:
+Built-in pattern for `task` and `feature` branches:
 
 ```text
 ^(task|feature)/(main|master|develop|maintenance|staging|prod)/[A-Za-z0-9._-]+$
 ```
 
-Examples that match: `feature/master/actions_pipeline`, `task/develop/add-login`, `feature/maintenance/patch.1`. Examples that do not: `main`, `feature/gbv-v1`, an empty name.
+Examples that match: `feature/master/actions_pipeline`, `task/develop/add-login`, `feature/maintenance/patch.1`. Examples that do not: `feature/gbv-v1`, an empty name. `main`, `master`, and a tag such as `v1.2.3` are allowed without matching the pattern.
 
-`BRANCH_TO_CHECK` supplies the name. `refs/heads/` and `refs/pull/` prefixes are removed. When `BRANCH_TO_CHECK` is empty, the session uses `git rev-parse --abbrev-ref HEAD`. A detached `HEAD` is treated as an empty name and fails the default pattern.
+`BRANCH_TO_CHECK` supplies the name. `refs/heads/` and `refs/pull/` prefixes are removed. A `refs/tags/` value, a GitHub or Azure tag ref, or a detached `HEAD` that points at a tag is allowed. When `BRANCH_TO_CHECK` is empty, the session uses `git rev-parse --abbrev-ref HEAD`. A detached `HEAD` that is not a tag is an empty name and fails the pattern.
 
 ```bash
 BRANCH_TO_CHECK=feature/master/actions_pipeline nox -s branch-name
+BRANCH_TO_CHECK=master nox -s branch-name
 BRANCH_TO_CHECK=feature/gbv-v1 nox -s branch-name
 ```
 
@@ -255,7 +256,7 @@ jobs:
 
 Each session is a separate check, named `standards / black`, `standards / yamllint`, and so on. After the first run, require those checks in the calling repository's branch protection rules.
 
-Copy `build-validation.yml` into the calling repository to choose which failures are warnings and which branch names are allowed. The built-in branch pattern accepts names such as `feature/main/add-login` and rejects names such as `feature/add-login`.
+Copy `build-validation.yml` into the calling repository to choose which failures are warnings and which branch names are allowed. The built-in branch pattern accepts names such as `feature/main/add-login` and rejects names such as `feature/add-login`. `main`, `master`, and tags are allowed.
 
 Terraform jobs are added only when the calling repository tracks a `.tf` file.
 
