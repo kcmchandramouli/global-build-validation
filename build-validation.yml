@@ -36,4 +36,6 @@ build-validation:
     error_as_warning: true
   branch-name-validation:
     error_as_warning: false
+    # Applied to task and feature branches. main, master, and tags are allowed
+    # in src/checks/branch.py and are not matched against this pattern.
     branch_regex: ^(task|feature)/(main|master|develop|maintenance|staging|prod)/[A-Za-z0-9._-]+$
